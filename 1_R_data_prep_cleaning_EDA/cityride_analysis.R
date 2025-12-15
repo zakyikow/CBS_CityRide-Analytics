@@ -377,9 +377,16 @@ plot_geographic_analysis <- function(rides_df) {
     theme_minimal() + theme(legend.position = "none")
   
   # 3. Revenue Share
-  city_rev <- rides_df %>% group_by(City) %>% summarise(Revenue = sum(Fare))
+  city_rev <- rides_df %>% 
+    group_by(City) %>% 
+    summarise(Revenue = sum(Fare)) %>%
+    mutate(Percentage = Revenue / sum(Revenue) * 100,
+           Label = sprintf("%.1f%%", Percentage))
+  
   p3 <- ggplot(city_rev, aes(x = "", y = Revenue, fill = City)) +
     geom_bar(stat = "identity", width = 1) +
+    geom_text(aes(label = Label), position = position_stack(vjust = 0.5), 
+              color = "white", fontface = "bold", size = 4) +
     coord_polar("y", start = 0) +
     labs(title = "Revenue Contribution by City") +
     theme_void()
