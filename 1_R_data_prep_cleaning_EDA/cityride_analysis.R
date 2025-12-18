@@ -150,6 +150,36 @@ identify_data_quality_issues <- function(df, dataset_name) {
   }
 }
 
+check_driver_age_experience <- function(drivers_df) {
+  cat(paste0("\n", strrep("=", 80), "\n"))
+  cat("DRIVER AGE/EXPERIENCE VALIDATION\n")
+  cat(paste0(strrep("=", 80), "\n\n"))
+
+  min_driving_age <- 18
+
+  # Calculate implied starting age
+  implied_start_age <- drivers_df$Age - drivers_df$Experience_Years
+  underage_count <- sum(implied_start_age < min_driving_age, na.rm = TRUE)
+
+  if (underage_count > 0) {
+    cat(sprintf("⚠ VALIDATION ISSUE DETECTED:\n"))
+    cat(sprintf("  • %d drivers have impossible age/experience combinations\n", underage_count))
+    cat(sprintf("    (would have started driving before age %d)\n\n", min_driving_age))
+
+    # Show examples
+    underage_drivers <- drivers_df[implied_start_age < min_driving_age, c("Driver_ID", "Age", "Experience_Years")]
+    underage_drivers$Implied_Start_Age <- implied_start_age[implied_start_age < min_driving_age]
+
+    cat("  Examples of problematic records:\n")
+    print(head(underage_drivers, 5))
+
+    cat(sprintf("\n  ℹ These will be corrected in transformation phase:\n"))
+    cat(sprintf("    Experience_Years = max(Age - %d, 0)\n\n", min_driving_age))
+  } else {
+    cat("✓ All drivers have valid age/experience combinations\n\n")
+  }
+}
+
 analyze_relationships <- function(rides_df, drivers_df) {
   cat(paste0("\n", strrep("=", 80), "\n"))
   cat("DATASET RELATIONSHIP ANALYSIS\n")
@@ -275,6 +305,40 @@ transform_rides_data <- function(df) {
   df$Is_Weekend <- as.integer(wday(df$Date) %in% c(1, 7))
 
   cat("✓ Added temporal features: Day_of_Week, Week_Number, Day_of_Month, Is_Weekend\n")
+
+  cat("\n✨ Transformation complete!\n")
+  cat(strrep("=", 80), "\n")
+
+  return(df)
+}
+
+transform_drivers_data <- function(df) {
+  cat("\n🚧 Transforming Drivers Data...\n")
+  cat(strrep("=", 80), "\n")
+
+  # Data Quality Check: Validate age vs experience
+  # Drivers cannot have started driving before age 18
+  min_driving_age <- 18
+
+  # Calculate implied starting age
+  implied_start_age <- df$Age - df$Experience_Years
+  underage_count <- sum(implied_start_age < min_driving_age, na.rm = TRUE)
+
+  if (underage_count > 0) {
+    cat(sprintf("⚠ Found %d drivers with impossible age/experience combinations\n", underage_count))
+    cat(sprintf("  (would have started driving before age %d)\n", min_driving_age))
+
+    # Correct the experience years for underage cases
+    underage_mask <- implied_start_age < min_driving_age
+    df$Experience_Years[underage_mask] <- pmax(df$Age[underage_mask] - min_driving_age, 0)
+
+    cat(sprintf(
+      "✓ Corrected %d driver records (Experience_Years = max(Age - %d, 0))\n",
+      underage_count, min_driving_age
+    ))
+  } else {
+    cat("✓ No age/experience validation issues found\n")
+  }
 
   cat("\n✨ Transformation complete!\n")
   cat(strrep("=", 80), "\n")
@@ -1075,6 +1139,9 @@ drivers_profile <- generate_profile_summary(drivers_df, "DRIVERS DATA")
 identify_data_quality_issues(rides_df, "RIDES DATA")
 identify_data_quality_issues(drivers_df, "DRIVERS DATA")
 
+# Check driver age/experience validation
+check_driver_age_experience(drivers_df)
+
 generate_summary_statistics(rides_df, drivers_df)
 generate_categorical_summary(rides_df, drivers_df)
 analyze_relationships(rides_df, drivers_df)
@@ -1085,6 +1152,7 @@ cat(" DATA TRANSFORMATION PHASE\n")
 cat(strrep("█", 80), "\n")
 
 rides_df <- transform_rides_data(rides_df)
+drivers_df <- transform_drivers_data(drivers_df)
 merged_df <- merge_datasets(rides_df, drivers_df)
 
 # 4. RUN VISUALIZATIONS & ANALYSES

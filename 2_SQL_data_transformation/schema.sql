@@ -192,7 +192,12 @@ SELECT
     name,
     age,
     city,
-    experience_years,
+    -- Conditional logic: only modify if the start age was under 18
+    CASE 
+        WHEN (age - experience_years) < 18 
+        THEN GREATEST(age - 18, 0) 
+        ELSE experience_years 
+    END AS experience_years,
     average_rating,
     active_status
 FROM stg_drivers
@@ -200,7 +205,12 @@ ON CONFLICT (driver_id) DO UPDATE SET
     driver_name = EXCLUDED.driver_name,
     age = EXCLUDED.age,
     city = EXCLUDED.city,
-    experience_years = EXCLUDED.experience_years,
+    -- Apply the same conditional logic on update
+    experience_years = CASE 
+        WHEN (EXCLUDED.age - EXCLUDED.experience_years) < 18 
+        THEN GREATEST(EXCLUDED.age - 18, 0) 
+        ELSE EXCLUDED.experience_years 
+    END,
     average_rating = EXCLUDED.average_rating,
     active_status = EXCLUDED.active_status;
 
